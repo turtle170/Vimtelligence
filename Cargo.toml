@@ -1,0 +1,19 @@
+[package]
+name = "vimtelligence"
+version = "0.1.0"
+edition = "2021"
+description = "An ultra-high-performance modal terminal text editor with local AI acceleration"
+repository = "https://github.com/turtle170/Vimtelligence"
+license = "Apache-2.0"
+
+[dependencies]
+ratatui = "0.26"
+crossterm = { version = "0.27", features = ["event-stream"] }
+ropey = "1.6"
+tokio = { version = "1", features = ["full"] }
+candle-core = "0.10"
+candle-nn = "0.10"
+candle-transformers = "0.10"
+tokenizers = "0.19.1"
+anyhow = "1.0"
+futures = "0.3"

@@ -1,0 +1,16 @@
+{
+  "name": "vimtelligence",
+  "version": "0.1.0",
+  "description": "An ultra-high-performance modal terminal text editor with local AI acceleration",
+  "bin": {
+    "vimtelligence": "./bin/vimtelligence"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/turtle170/Vimtelligence"
+  },
+  "license": "Apache-2.0"
+}
