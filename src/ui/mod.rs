@@ -57,10 +57,19 @@ pub fn render(f: &mut Frame, state: &EditorState) {
     let mode_str = match state.mode {
         crate::editor::Mode::Normal => "NORMAL",
         crate::editor::Mode::Insert => "INSERT",
+        crate::editor::Mode::Visual => "VISUAL",
+        crate::editor::Mode::VisualLine => "V-LINE",
         crate::editor::Mode::PendingMotion => "PENDING",
         crate::editor::Mode::EzMode => "EZ MODE",
     };
-    let status_line = Paragraph::new(format!("-- {} --", mode_str)).block(Block::default());
+    
+    let pending_str = if state.pending_command.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", state.pending_command)
+    };
+    
+    let status_line = Paragraph::new(format!("-- {}{} --", mode_str, pending_str)).block(Block::default());
     f.render_widget(status_line, chunks[2]);
 
     if state.mode == crate::editor::Mode::EzMode {

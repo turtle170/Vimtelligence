@@ -24,11 +24,12 @@ pub struct Debouncer {
 impl Debouncer {
     pub fn new() -> Self {
         let mut trie = TrieNode::default();
-        // Load common vim commands into the trie
-        let commands = vec!["ciw", "ci\"", "ci'", "cib", "ci(", "ci{", "ci[", "ci<",
-                            "diw", "di\"", "di'", "dib", "di(", "di{", "di[", "di<",
-                            "yiw", "yi\"", "yi'", "yib", "yi(", "yi{", "yi[", "yi<",
-                            "d$", "c$", "y$", "dd", "cc", "yy", "daw", "daw", "yap"];
+        // Load recommended whitelist matrix commands into the trie
+        let commands = vec![
+            "ciw", "caw", "ci\"", "ci(", "ci{",
+            "diw", "daw", "di\"", "di(", "di{",
+            "dd", "cc", "D", "C"
+        ];
         for cmd in commands {
             trie.insert(cmd);
         }

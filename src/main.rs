@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{self, EventStream, PushKeyboardEnhancementFlags},
+    event::{EnableMouseCapture, DisableMouseCapture, EventStream, PushKeyboardEnhancementFlags},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -32,6 +32,7 @@ async fn main() -> anyhow::Result<()> {
     execute!(
         stdout,
         EnterAlternateScreen,
+        EnableMouseCapture,
         PushKeyboardEnhancementFlags(
             crossterm::event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES
                 | crossterm::event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
@@ -90,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
+        DisableMouseCapture,
         crossterm::event::PopKeyboardEnhancementFlags
     )?;
     disable_raw_mode()?;

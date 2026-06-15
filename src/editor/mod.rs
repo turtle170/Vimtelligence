@@ -4,6 +4,8 @@ use ropey::Rope;
 pub enum Mode {
     Normal,
     Insert,
+    Visual,
+    VisualLine,
     PendingMotion,
     EzMode,
 }
@@ -17,6 +19,9 @@ pub struct EditorState {
     pub debouncer: crate::input::debouncer::Debouncer,
     pub ez_input: String,
     pub file_path: Option<String>,
+    pub pending_command: String,
+    pub selection_anchor: Option<(usize, usize)>, // (row, col)
+    pub clipboard_register: Option<String>,
 }
 
 impl EditorState {
@@ -30,6 +35,9 @@ impl EditorState {
             debouncer: crate::input::debouncer::Debouncer::new(),
             ez_input: String::new(),
             file_path: None,
+            pending_command: String::new(),
+            selection_anchor: None,
+            clipboard_register: None,
         }
     }
 
@@ -50,6 +58,9 @@ impl EditorState {
             debouncer: crate::input::debouncer::Debouncer::new(),
             ez_input: String::new(),
             file_path: Some(path.to_string()),
+            pending_command: String::new(),
+            selection_anchor: None,
+            clipboard_register: None,
         })
     }
 

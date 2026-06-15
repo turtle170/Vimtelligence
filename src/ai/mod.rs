@@ -16,7 +16,7 @@ pub struct AiEngine {
 }
 
 impl AiEngine {
-    pub fn new(model_path: PathBuf) -> Self {
+    pub fn new(_model_path: PathBuf) -> Self {
         let (req_tx, mut req_rx) = mpsc::channel::<AiRequest>(10);
         let (res_tx, res_rx) = mpsc::channel::<AiResponse>(10);
 
