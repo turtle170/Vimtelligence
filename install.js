@@ -3,9 +3,16 @@ const path = require('path');
 const https = require('https');
 const os = require('os');
 
+const pkg = require('./package.json');
+const VERSION = `v${pkg.version}`;
+
 const MODEL_URL = 'https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-UD-Q8_K_XL.gguf';
 const MODEL_DIR = path.join(os.homedir(), '.vimtelligence', 'models');
 const MODEL_PATH = path.join(MODEL_DIR, 'gemma-3-270m-it-UD-Q8_K_XL.gguf');
+
+const BIN_URL = `https://github.com/turtle170/Vimtelligence/releases/download/${VERSION}/vimtelligence.exe`;
+const BIN_DIR = path.join(os.homedir(), '.vimtelligence', 'bin');
+const BIN_PATH = path.join(BIN_DIR, 'vimtelligence.exe');
 
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
@@ -24,14 +31,19 @@ function downloadFile(url, dest) {
 
       response.on('data', (chunk) => {
         downloaded += chunk.length;
-        const percent = ((downloaded / totalSize) * 100).toFixed(2);
-        process.stdout.write(`Downloading model... ${percent}%\r`);
+        if (!isNaN(totalSize)) {
+            const percent = ((downloaded / totalSize) * 100).toFixed(2);
+            process.stdout.write(`Downloading ${path.basename(dest)}... ${percent}%\r`);
+        } else {
+            process.stdout.write(`Downloading ${path.basename(dest)}... ${downloaded} bytes\r`);
+        }
       });
 
       response.pipe(file);
       file.on('finish', () => {
         file.close();
         console.log(`\nDownloaded ${dest}`);
+        fs.chmodSync(dest, 0o755); // Make executable
         resolve();
       });
     }).on('error', (err) => {
@@ -45,6 +57,10 @@ async function main() {
   if (!fs.existsSync(MODEL_DIR)) {
     fs.mkdirSync(MODEL_DIR, { recursive: true });
   }
+  
+  if (!fs.existsSync(BIN_DIR)) {
+    fs.mkdirSync(BIN_DIR, { recursive: true });
+  }
 
   if (!fs.existsSync(MODEL_PATH)) {
     console.log(`Model not found locally. Downloading from Hugging Face...`);
@@ -52,10 +68,25 @@ async function main() {
       await downloadFile(MODEL_URL, MODEL_PATH);
     } catch (err) {
       console.error(`Error downloading model: ${err.message}`);
-      process.exit(1);
     }
   } else {
     console.log(`Model already exists at ${MODEL_PATH}. Skipping download.`);
+  }
+
+  // Only download binary on windows for now since it's the only one built in CI
+  if (os.platform() === 'win32') {
+    if (!fs.existsSync(BIN_PATH)) {
+      console.log(`Executable not found. Downloading from GitHub Releases...`);
+      try {
+        await downloadFile(BIN_URL, BIN_PATH);
+      } catch (err) {
+        console.error(`Error downloading binary: ${err.message}`);
+      }
+    } else {
+      console.log(`Binary already exists at ${BIN_PATH}. Skipping download.`);
+    }
+  } else {
+      console.log(`Please build from source on non-Windows platforms. Binary not provided via NPM yet.`);
   }
 }
 
