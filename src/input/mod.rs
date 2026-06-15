@@ -3,7 +3,7 @@ use crate::editor::EditorState;
 
 pub mod debouncer;
 
-pub async fn handle_event(event: Event, state: &mut EditorState) -> anyhow::Result<()> {
+pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &crate::ai::AiEngine) -> anyhow::Result<()> {
     if let Event::Key(key) = event {
         if key.kind == KeyEventKind::Press {
             if key.code == crossterm::event::KeyCode::Esc {
@@ -18,6 +18,16 @@ pub async fn handle_event(event: Event, state: &mut EditorState) -> anyhow::Resu
                         state.mode = crate::editor::Mode::Insert;
                     } else if let crossterm::event::KeyCode::Char('q') = key.code {
                         state.should_quit = true; // Temporary quit key for normal mode
+                    } else if let crossterm::event::KeyCode::Char('s') = key.code {
+                        let _ = state.save();
+                    } else if let crossterm::event::KeyCode::Char('h') = key.code {
+                        state.move_cursor_left();
+                    } else if let crossterm::event::KeyCode::Char('l') = key.code {
+                        state.move_cursor_right();
+                    } else if let crossterm::event::KeyCode::Char('j') = key.code {
+                        state.move_cursor_down();
+                    } else if let crossterm::event::KeyCode::Char('k') = key.code {
+                        state.move_cursor_up();
                     } else if let crossterm::event::KeyCode::Char('W') = key.code {
                         if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
                             state.mode = crate::editor::Mode::EzMode;
@@ -47,11 +57,9 @@ pub async fn handle_event(event: Event, state: &mut EditorState) -> anyhow::Resu
                     } else if let crossterm::event::KeyCode::Backspace = key.code {
                         state.ez_input.pop();
                     } else if let crossterm::event::KeyCode::Enter = key.code {
-                        // TODO: Send to AI background thread
                         state.mode = crate::editor::Mode::Normal;
                         let query = state.ez_input.clone();
-                        // For now, mock execution
-                        execute_command(&format!("AI_RESULT_FOR: {}", query), state);
+                        let _ = ai_engine.send_query(query).await;
                     }
                 }
                 _ => {}
@@ -64,18 +72,63 @@ pub async fn handle_event(event: Event, state: &mut EditorState) -> anyhow::Resu
 }
 
 pub fn execute_command(cmd: &str, state: &mut EditorState) {
-    // Phase 1: Just log it or apply a basic structural change
-    // Since we're in insert mode and it debounced, we should delete the command characters from the buffer first!
-    let chars_to_delete = cmd.len();
+    let chars_to_delete = if state.mode == crate::editor::Mode::Insert {
+        cmd.len()
+    } else {
+        0
+    };
+
     if state.cursor_col >= chars_to_delete {
         state.cursor_col -= chars_to_delete;
         let line = state.buffer.line_to_char(state.cursor_row);
         state.buffer.remove(line + state.cursor_col..line + state.cursor_col + chars_to_delete);
     }
-    
-    // For now, let's just insert a dummy tag so we know it executed
-    let execute_msg = format!("<EXEC: {}>", cmd);
-    let line = state.buffer.line_to_char(state.cursor_row);
-    state.buffer.insert(line + state.cursor_col, &execute_msg);
-    state.cursor_col += execute_msg.len();
+
+    match cmd {
+        "dd" => {
+            let start = state.buffer.line_to_char(state.cursor_row);
+            let next_row = state.cursor_row + 1;
+            let end = if next_row < state.buffer.len_lines() {
+                state.buffer.line_to_char(next_row)
+            } else {
+                state.buffer.len_chars()
+            };
+            if start < end {
+                state.buffer.remove(start..end);
+            }
+            state.cursor_col = 0;
+            if state.cursor_row >= state.buffer.len_lines() && state.cursor_row > 0 {
+                state.cursor_row -= 1;
+            }
+        }
+        "ciw" | "diw" | "daw" => {
+            let line = state.buffer.line(state.cursor_row).to_string();
+            let col = state.cursor_col;
+            let mut start = col;
+            while start > 0 && line.chars().nth(start - 1).map_or(false, |c| c.is_alphanumeric() || c == '_') {
+                start -= 1;
+            }
+            let mut end = col;
+            while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_alphanumeric() || c == '_') {
+                end += 1;
+            }
+            
+            if cmd == "daw" {
+                while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_whitespace()) {
+                    end += 1;
+                }
+            }
+
+            if start < end {
+                let char_idx = state.buffer.line_to_char(state.cursor_row);
+                state.buffer.remove(char_idx + start..char_idx + end);
+                state.cursor_col = start;
+            }
+
+            if cmd == "ciw" {
+                state.mode = crate::editor::Mode::Insert;
+            }
+        }
+        _ => {}
+    }
 }

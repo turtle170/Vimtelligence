@@ -16,8 +16,26 @@ pub fn render(f: &mut Frame, state: &EditorState) {
         .split(f.size());
 
     let buffer_text = String::from(state.buffer.clone());
-    let main_buffer = Paragraph::new(buffer_text).block(Block::default().borders(Borders::ALL));
-    f.render_widget(main_buffer, chunks[0]);
+    
+    // Calculate viewport scroll based on cursor position and available height
+    let main_area = chunks[0];
+    let height = main_area.height.saturating_sub(2); // Subtract borders
+    let scroll_y = if state.cursor_row as u16 > height {
+        (state.cursor_row as u16) - height + 2
+    } else {
+        0
+    };
+
+    let main_buffer = Paragraph::new(buffer_text)
+        .block(Block::default().borders(Borders::ALL))
+        .scroll((scroll_y, 0));
+        
+    f.render_widget(main_buffer, main_area);
+
+    if state.mode != crate::editor::Mode::EzMode {
+        let cursor_screen_y = (state.cursor_row as u16).saturating_sub(scroll_y) + 1;
+        f.set_cursor((state.cursor_col + 1) as u16, cursor_screen_y);
+    }
 
     let keyshow_text = if state.mode == crate::editor::Mode::PendingMotion {
         "Keyshow: [c]hange -> [i]nside -> [w]ord, [p]aragraph, [\"]quotes"

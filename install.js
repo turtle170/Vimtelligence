@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const os = require('os');
 
 const MODEL_URL = 'https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-UD-Q8_K_XL.gguf';
-const MODEL_DIR = path.join(__dirname, 'models');
+const MODEL_DIR = path.join(os.homedir(), '.vimtelligence', 'models');
 const MODEL_PATH = path.join(MODEL_DIR, 'gemma-3-270m-it-UD-Q8_K_XL.gguf');
 
 function downloadFile(url, dest) {
