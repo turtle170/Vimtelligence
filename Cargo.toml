@@ -1,6 +1,6 @@
 [package]
 name = "vimtelligence"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "An ultra-high-performance modal terminal text editor with local AI acceleration"
 repository = "https://github.com/turtle170/Vimtelligence"

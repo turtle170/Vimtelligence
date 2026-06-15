@@ -58,13 +58,38 @@ async fn main() -> anyhow::Result<()> {
         if has_match {
             match tokio::time::timeout(debounce_timeout, event_stream.next()).await {
                 Ok(Some(Ok(event))) => {
+                    let mut retro_execute = false;
+                    if let crossterm::event::Event::Key(k) = &event {
+                        if k.kind == crossterm::event::KeyEventKind::Press && 
+                           (k.code == crossterm::event::KeyCode::Char(' ') || k.code == crossterm::event::KeyCode::Enter) {
+                            retro_execute = true;
+                        }
+                    }
+
+                    if retro_execute {
+                        let (cmd_str, cmd_ast) = state.debouncer.matches_command().unwrap();
+                        let len = cmd_str.len();
+                        if state.cursor_col >= len {
+                            state.cursor_col -= len;
+                            let line = state.buffer.line_to_char(state.cursor_row);
+                            state.buffer.remove(line + state.cursor_col..line + state.cursor_col + len);
+                        }
+                        input::execute_ast_command(&cmd_ast, &mut state);
+                        state.debouncer.clear();
+                    }
                     input::handle_event(event, &mut state, &ai_engine).await?;
                 }
                 Ok(Some(Err(e))) => return Err(e.into()),
                 Ok(None) => break,
                 Err(_) => {
-                    let cmd = state.debouncer.matches_command().unwrap();
-                    input::execute_command(&cmd, &mut state);
+                    let (cmd_str, cmd_ast) = state.debouncer.matches_command().unwrap();
+                    let len = cmd_str.len();
+                    if state.cursor_col >= len {
+                        state.cursor_col -= len;
+                        let line = state.buffer.line_to_char(state.cursor_row);
+                        state.buffer.remove(line + state.cursor_col..line + state.cursor_col + len);
+                    }
+                    input::execute_ast_command(&cmd_ast, &mut state);
                     state.debouncer.clear();
                 }
             }
@@ -78,7 +103,9 @@ async fn main() -> anyhow::Result<()> {
                 Some(response) = ai_engine.rx.recv() => {
                     match response {
                         ai::AiResponse::Command(cmd) => {
-                            input::execute_command(&cmd, &mut state);
+                            if let input::parser::ParseResult::Complete(ast) = input::parser::parse_command(&cmd) {
+                                input::execute_ast_command(&ast, &mut state);
+                            }
                         }
                         ai::AiResponse::Error(_) => {}
                     }

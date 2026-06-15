@@ -1,48 +1,19 @@
-use std::collections::HashMap;
-
-#[derive(Default, Debug)]
-struct TrieNode {
-    children: HashMap<char, TrieNode>,
-    is_command: bool,
-}
-
-impl TrieNode {
-    fn insert(&mut self, word: &str) {
-        let mut curr = self;
-        for c in word.chars() {
-            curr = curr.children.entry(c).or_default();
-        }
-        curr.is_command = true;
-    }
-}
+use crate::input::parser;
 
 pub struct Debouncer {
     buffer: Vec<char>,
-    trie: TrieNode,
 }
 
 impl Debouncer {
     pub fn new() -> Self {
-        let mut trie = TrieNode::default();
-        // Load recommended whitelist matrix commands into the trie
-        let commands = vec![
-            "ciw", "caw", "ci\"", "ci(", "ci{",
-            "diw", "daw", "di\"", "di(", "di{",
-            "dd", "cc", "D", "C"
-        ];
-        for cmd in commands {
-            trie.insert(cmd);
-        }
-
         Self {
-            buffer: Vec::with_capacity(10),
-            trie,
+            buffer: Vec::with_capacity(20),
         }
     }
 
     pub fn push(&mut self, c: char) {
         self.buffer.push(c);
-        if self.buffer.len() > 10 {
+        if self.buffer.len() > 20 {
             self.buffer.remove(0);
         }
     }
@@ -51,27 +22,25 @@ impl Debouncer {
         self.buffer.clear();
     }
 
-    /// Checks if the current buffer suffix matches a complete command
-    pub fn matches_command(&self) -> Option<String> {
-        // We check suffixes of the buffer.
-        // e.g., if buffer is ['h', 'e', 'l', 'l', 'o', 'd', 'i', 'w'], suffix "diw" is a command.
+    /// Checks if the current buffer suffix matches a complete command using AST parser
+    pub fn matches_command(&self) -> Option<(String, parser::VimCommand)> {
         for i in 0..self.buffer.len() {
             let suffix: String = self.buffer[i..].iter().collect();
-            if self.is_command(&suffix) {
-                return Some(suffix);
+            
+            if let parser::ParseResult::Complete(cmd) = parser::parse_command(&suffix) {
+                // Heuristic: Ensure the character preceding the suffix is a boundary
+                let is_boundary = if i == 0 {
+                    true // Start of buffer
+                } else {
+                    let prev_char = self.buffer[i - 1];
+                    prev_char.is_whitespace() || !prev_char.is_alphanumeric()
+                };
+
+                if is_boundary {
+                    return Some((suffix, cmd));
+                }
             }
         }
         None
-    }
-
-    fn is_command(&self, word: &str) -> bool {
-        let mut curr = &self.trie;
-        for c in word.chars() {
-            match curr.children.get(&c) {
-                Some(node) => curr = node,
-                None => return false,
-            }
-        }
-        curr.is_command
     }
 }

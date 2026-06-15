@@ -118,67 +118,7 @@ pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &cra
     Ok(())
 }
 
-pub fn execute_command(cmd: &str, state: &mut EditorState) {
-    let chars_to_delete = if state.mode == crate::editor::Mode::Insert {
-        cmd.len()
-    } else {
-        0
-    };
 
-    if state.cursor_col >= chars_to_delete {
-        state.cursor_col -= chars_to_delete;
-        let line = state.buffer.line_to_char(state.cursor_row);
-        state.buffer.remove(line + state.cursor_col..line + state.cursor_col + chars_to_delete);
-    }
-
-    match cmd {
-        "dd" => {
-            let start = state.buffer.line_to_char(state.cursor_row);
-            let next_row = state.cursor_row + 1;
-            let end = if next_row < state.buffer.len_lines() {
-                state.buffer.line_to_char(next_row)
-            } else {
-                state.buffer.len_chars()
-            };
-            if start < end {
-                state.buffer.remove(start..end);
-            }
-            state.cursor_col = 0;
-            if state.cursor_row >= state.buffer.len_lines() && state.cursor_row > 0 {
-                state.cursor_row -= 1;
-            }
-        }
-        "ciw" | "diw" | "daw" => {
-            let line = state.buffer.line(state.cursor_row).to_string();
-            let col = state.cursor_col;
-            let mut start = col;
-            while start > 0 && line.chars().nth(start - 1).map_or(false, |c| c.is_alphanumeric() || c == '_') {
-                start -= 1;
-            }
-            let mut end = col;
-            while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_alphanumeric() || c == '_') {
-                end += 1;
-            }
-            
-            if cmd == "daw" {
-                while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_whitespace()) {
-                    end += 1;
-                }
-            }
-
-            if start < end {
-                let char_idx = state.buffer.line_to_char(state.cursor_row);
-                state.buffer.remove(char_idx + start..char_idx + end);
-                state.cursor_col = start;
-            }
-
-            if cmd == "ciw" {
-                state.mode = crate::editor::Mode::Insert;
-            }
-        }
-        _ => {}
-    }
-}
 
 pub fn execute_ast_command(cmd: &parser::VimCommand, state: &mut EditorState) {
     use parser::{Operator, Action, Motion, TextObject};
