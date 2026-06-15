@@ -47,13 +47,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  publish-winget:
-    needs: build-and-release
-    runs-on: windows-latest
-    steps:
-      - name: Winget Releaser
-        uses: vedantmgoyal2009/winget-releaser@v2
-        with:
-          identifier: turtle170.Vimtelligence
-          installers-regex: '\.exe$'
-          token: ${{ secrets.GITHUB_TOKEN }}
+
