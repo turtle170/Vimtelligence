@@ -18,6 +18,14 @@ pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &cra
                     return Ok(());
                 }
 
+                if let crossterm::event::KeyCode::Char('w') = key.code {
+                    if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
+                        state.mode = crate::editor::Mode::EzMode;
+                        state.ez_input.clear();
+                        return Ok(());
+                    }
+                }
+
             match state.mode {
                 crate::editor::Mode::Normal | crate::editor::Mode::Visual | crate::editor::Mode::VisualLine => {
                     // Quick commands
@@ -35,12 +43,6 @@ pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &cra
                         } else if let crossterm::event::KeyCode::Char('s') = key.code {
                             let _ = state.save();
                             return Ok(());
-                        } else if let crossterm::event::KeyCode::Char('W') = key.code {
-                            if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) {
-                                state.mode = crate::editor::Mode::EzMode;
-                                state.ez_input.clear();
-                                return Ok(());
-                            }
                         }
                     }
 
