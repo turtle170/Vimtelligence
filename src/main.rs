@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
             break;
         }
 
-        let debounce_timeout = std::time::Duration::from_millis(150);
+        let debounce_timeout = std::time::Duration::from_millis(1000);
         let has_match = state.mode == editor::Mode::Insert && state.debouncer.matches_command().is_some();
 
         if has_match {

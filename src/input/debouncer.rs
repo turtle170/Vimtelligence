@@ -36,7 +36,7 @@ impl Debouncer {
                     prev_char.is_whitespace() || !prev_char.is_alphanumeric()
                 };
 
-                if is_boundary {
+                if is_boundary && cmd.operator.is_some() {
                     return Some((suffix, cmd));
                 }
             }

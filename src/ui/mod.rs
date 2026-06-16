@@ -1,6 +1,8 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    widgets::{Block, Borders, Paragraph},
+    layout::{Constraint, Direction, Layout, Alignment},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, BorderType},
     Frame,
 };
 use crate::editor::EditorState;
@@ -26,8 +28,19 @@ pub fn render(f: &mut Frame, state: &EditorState) {
         0
     };
 
+    let title = Line::from(vec![
+        Span::styled(" Vim", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled("telligence ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+    ]);
+
     let main_buffer = Paragraph::new(buffer_text)
-        .block(Block::default().borders(Borders::ALL))
+        .block(
+            Block::default()
+                .title(title)
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(Color::DarkGray))
+        )
         .scroll((scroll_y, 0));
         
     f.render_widget(main_buffer, main_area);
@@ -37,45 +50,57 @@ pub fn render(f: &mut Frame, state: &EditorState) {
         f.set_cursor((state.cursor_col + 1) as u16, cursor_screen_y);
     }
 
-    let keyshow_text = if state.mode == crate::editor::Mode::PendingMotion {
-        "Keyshow: [c]hange -> [i]nside -> [w]ord, [p]aragraph, [\"]quotes"
+    let (keyshow_style, keyshow_text) = if state.mode == crate::editor::Mode::PendingMotion {
+        (Style::default().fg(Color::Yellow), " [Pending] Waiting for motion or text object (e.g. w, p, \", {)")
     } else if state.mode == crate::editor::Mode::Insert {
         if state.debouncer.matches_command().is_some() {
-            "Keyshow: Auto-switcher paused... (Type another letter to cancel, or wait to execute)"
+            (Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD), " [Insert] Auto-switcher paused... (Executing in 1s or type to cancel)")
         } else {
-            "Keyshow: Type freely. Vim commands will be auto-detected."
+            (Style::default().fg(Color::DarkGray), " [Insert] Type freely. Structural edits (like ciw) will be auto-detected.")
         }
     } else if state.mode == crate::editor::Mode::EzMode {
-        "Keyshow: EZ MODE active. Type your command in natural language and press Enter."
+        (Style::default().fg(Color::LightMagenta).add_modifier(Modifier::BOLD), " [EZ MODE] Type your command in natural language and press Enter.")
     } else {
-        "Keyshow Bar (Inactive)"
+        (Style::default().fg(Color::DarkGray), "")
     };
 
-    let keyshow = Paragraph::new(keyshow_text).block(Block::default().borders(Borders::TOP));
+    let keyshow = Paragraph::new(keyshow_text)
+        .style(keyshow_style);
     f.render_widget(keyshow, chunks[1]);
 
-    let mode_str = match state.mode {
-        crate::editor::Mode::Normal => "NORMAL",
-        crate::editor::Mode::Insert => "INSERT",
-        crate::editor::Mode::Visual => "VISUAL",
-        crate::editor::Mode::VisualLine => "V-LINE",
-        crate::editor::Mode::PendingMotion => "PENDING",
-        crate::editor::Mode::EzMode => "EZ MODE",
+    let (mode_color, mode_str) = match state.mode {
+        crate::editor::Mode::Normal => (Color::Blue, " NORMAL "),
+        crate::editor::Mode::Insert => (Color::Green, " INSERT "),
+        crate::editor::Mode::Visual => (Color::Yellow, " VISUAL "),
+        crate::editor::Mode::VisualLine => (Color::Yellow, " V-LINE "),
+        crate::editor::Mode::PendingMotion => (Color::Cyan, " PENDING "),
+        crate::editor::Mode::EzMode => (Color::Magenta, " EZ MODE "),
     };
     
     let pending_str = if state.pending_command.is_empty() {
         String::new()
     } else {
-        format!(" [{}]", state.pending_command)
+        format!(" {} ", state.pending_command)
     };
     
-    let status_line = Paragraph::new(format!("-- {}{} --", mode_str, pending_str)).block(Block::default());
-    f.render_widget(status_line, chunks[2]);
+    let status_line = Line::from(vec![
+        Span::styled(mode_str, Style::default().bg(mode_color).fg(Color::Black).add_modifier(Modifier::BOLD)),
+        Span::styled(pending_str, Style::default().bg(Color::DarkGray).fg(Color::White)),
+    ]);
+
+    let status_paragraph = Paragraph::new(status_line).block(Block::default());
+    f.render_widget(status_paragraph, chunks[2]);
 
     if state.mode == crate::editor::Mode::EzMode {
         let area = ratatui::layout::Rect::new(f.size().width / 4, f.size().height / 2 - 2, f.size().width / 2, 3);
         let overlay = Paragraph::new(state.ez_input.clone())
-            .block(Block::default().title("EZ Mode (Describe your edit)").borders(Borders::ALL));
+            .block(
+                Block::default()
+                    .title(" EZ Mode (Describe your edit) ")
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Double)
+                    .border_style(Style::default().fg(Color::Magenta))
+            );
         f.render_widget(ratatui::widgets::Clear, area);
         f.render_widget(overlay, area);
     }
