@@ -7,24 +7,26 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
 use futures::StreamExt;
 
-mod editor;
-mod input;
-mod ui;
-mod ai;
-
-use editor::EditorState;
+use vimtelligence::editor::EditorState;
+use vimtelligence::input;
+use vimtelligence::ui;
+use vimtelligence::ai::AiEngine;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let mut state = if args.len() > 1 {
-        EditorState::from_path(&args[1])?
-    } else {
-        EditorState::new()
-    };
+    let file_path = args.get(1).map(std::path::PathBuf::from);
 
     let model_path = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".vimtelligence/models/gemma-3-270m-it-UD-Q8_K_XL.gguf");
-    let mut ai_engine = ai::AiEngine::new(model_path);
+    let mut state = EditorState::new();
+    if let Some(path) = &file_path {
+        state.file_path = Some(path.to_string_lossy().to_string());
+        if let Ok(content) = std::fs::read_to_string(path) {
+            state.buffer = ropey::Rope::from_str(&content);
+        }
+    }
+
+    let mut ai_engine = AiEngine::new(model_path);
 
     // Setup terminal
     enable_raw_mode()?;
@@ -49,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         let debounce_timeout = std::time::Duration::from_millis(1000);
-        let has_match = state.mode == editor::Mode::Insert && state.debouncer.matches_command().is_some();
+        let has_match = state.mode == vimtelligence::editor::Mode::Insert && state.debouncer.matches_command().is_some();
 
         if has_match {
             match tokio::time::timeout(debounce_timeout, event_stream.next()).await {
@@ -98,12 +100,13 @@ async fn main() -> anyhow::Result<()> {
                 }
                 Some(response) = ai_engine.rx.recv() => {
                     match response {
-                        ai::AiResponse::Command(cmd) => {
+                        vimtelligence::ai::AiResponse::Command(cmd) => {
+                            state.mode = vimtelligence::editor::Mode::Normal;
                             if let input::parser::ParseResult::Complete(ast) = input::parser::parse_command(&cmd) {
                                 input::execute_ast_command(&ast, &mut state);
                             }
                         }
-                        ai::AiResponse::Error(_) => {}
+                        vimtelligence::ai::AiResponse::Error(_) => {}
                     }
                 }
             }

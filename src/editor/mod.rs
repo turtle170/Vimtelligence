@@ -22,6 +22,7 @@ pub struct EditorState {
     pub pending_command: String,
     pub selection_anchor: Option<(usize, usize)>, // (row, col)
     pub clipboard_register: Option<String>,
+    pub syntax: crate::syntax::SyntaxEngine,
 }
 
 impl EditorState {
@@ -38,6 +39,7 @@ impl EditorState {
             pending_command: String::new(),
             selection_anchor: None,
             clipboard_register: None,
+            syntax: crate::syntax::SyntaxEngine::new(),
         }
     }
 
@@ -48,6 +50,13 @@ impl EditorState {
         } else {
             Rope::from_str("")
         };
+
+        let mut syntax = crate::syntax::SyntaxEngine::new();
+        if let Some(ext) = std::path::Path::new(path).extension().and_then(|s| s.to_str()) {
+            syntax.set_language(ext);
+        }
+        let text_str = String::from(buffer.clone());
+        syntax.parse(&text_str);
 
         Ok(Self {
             buffer,
@@ -61,6 +70,7 @@ impl EditorState {
             pending_command: String::new(),
             selection_anchor: None,
             clipboard_register: None,
+            syntax,
         })
     }
 
@@ -111,5 +121,10 @@ impl EditorState {
                 self.cursor_col = max_col;
             }
         }
+    }
+
+    pub fn reparse_syntax(&mut self) {
+        let text = String::from(self.buffer.clone());
+        self.syntax.parse(&text);
     }
 }

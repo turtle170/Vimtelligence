@@ -11,46 +11,13 @@ const MODEL_DIR = path.join(os.homedir(), '.vimtelligence', 'models');
 const MODEL_PATH = path.join(MODEL_DIR, 'gemma-3-270m-it-UD-Q8_K_XL.gguf');
 
 const BIN_URL = `https://github.com/turtle170/Vimtelligence/releases/download/${VERSION}/vimtelligence.exe`;
+const GUI_BIN_URL = `https://github.com/turtle170/Vimtelligence/releases/download/${VERSION}/vimtelligence-gui.exe`;
 const BIN_DIR = path.join(os.homedir(), '.vimtelligence', 'bin');
 const BIN_PATH = path.join(BIN_DIR, 'vimtelligence.exe');
+const GUI_BIN_PATH = path.join(BIN_DIR, 'vimtelligence-gui.exe');
 
 function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https.get(url, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        return downloadFile(response.headers.location, dest).then(resolve).catch(reject);
-      }
-      
-      if (response.statusCode !== 200) {
-        return reject(new Error(`Failed to download ${url}: ${response.statusCode}`));
-      }
-
-      const totalSize = parseInt(response.headers['content-length'], 10);
-      let downloaded = 0;
-
-      response.on('data', (chunk) => {
-        downloaded += chunk.length;
-        if (!isNaN(totalSize)) {
-            const percent = ((downloaded / totalSize) * 100).toFixed(2);
-            process.stdout.write(`Downloading ${path.basename(dest)}... ${percent}%\r`);
-        } else {
-            process.stdout.write(`Downloading ${path.basename(dest)}... ${downloaded} bytes\r`);
-        }
-      });
-
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close();
-        console.log(`\nDownloaded ${dest}`);
-        fs.chmodSync(dest, 0o755); // Make executable
-        resolve();
-      });
-    }).on('error', (err) => {
-      fs.unlink(dest, () => {});
-      reject(err);
-    });
-  });
+// ... unchanged ...
 }
 
 async function main() {
@@ -75,9 +42,10 @@ async function main() {
 
   // Only download binary on windows for now since it's the only one built in CI
   if (os.platform() === 'win32') {
-    console.log(`Downloading Vimtelligence ${VERSION} Executable from GitHub Releases...`);
+    console.log(`Downloading Vimtelligence ${VERSION} Executables from GitHub Releases...`);
     try {
       await downloadFile(BIN_URL, BIN_PATH);
+      await downloadFile(GUI_BIN_URL, GUI_BIN_PATH);
     } catch (err) {
       console.error(`Error downloading binary: ${err.message}`);
     }

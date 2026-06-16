@@ -3,6 +3,7 @@ use crate::editor::EditorState;
 
 pub mod debouncer;
 pub mod parser;
+pub mod egui_compat;
 
 pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &crate::ai::AiEngine) -> anyhow::Result<()> {
     match event {
@@ -71,11 +72,13 @@ pub async fn handle_event(event: Event, state: &mut EditorState, ai_engine: &cra
                         let line = state.buffer.line_to_char(state.cursor_row);
                         state.buffer.insert_char(line + col, c);
                         state.cursor_col += 1;
+                        state.reparse_syntax();
                     } else if let crossterm::event::KeyCode::Backspace = key.code {
                         if state.cursor_col > 0 {
                             state.cursor_col -= 1;
                             let line = state.buffer.line_to_char(state.cursor_row);
                             state.buffer.remove(line + state.cursor_col..line + state.cursor_col + 1);
+                            state.reparse_syntax();
                         }
                     }
                 }
@@ -163,33 +166,124 @@ pub fn execute_ast_command(cmd: &parser::VimCommand, state: &mut EditorState) {
             }
         }
         Action::Inside(obj) | Action::Around(obj) => {
-            // Re-use logic from `ciw` etc.
-            let line = state.buffer.line(state.cursor_row).to_string();
-            let col = state.cursor_col;
-            let mut start = col;
-            let mut end = col;
+            let cursor_char_idx = state.buffer.line_to_char(state.cursor_row) + state.cursor_col;
+            let cursor_byte_idx = state.buffer.char_to_byte(cursor_char_idx);
+            let text = String::from(state.buffer.clone());
 
+            let mut semantic_bounds = None;
+            
+            // Try tree-sitter semantic bounds first
             match obj {
                 TextObject::Word | TextObject::BigWord => {
-                    while start > 0 && line.chars().nth(start - 1).map_or(false, |c| c.is_alphanumeric() || c == '_') {
-                        start -= 1;
-                    }
-                    while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_alphanumeric() || c == '_') {
-                        end += 1;
-                    }
-                    if matches!(cmd.action, Action::Around(_)) {
-                        while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_whitespace()) {
-                            end += 1;
+                    if let Some((start_byte, end_byte)) = state.syntax.get_node_at_byte(cursor_byte_idx) {
+                        let start_char = state.buffer.byte_to_char(start_byte);
+                        let end_char = state.buffer.byte_to_char(end_byte);
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
                         }
                     }
                 }
-                _ => {} // Other text objects
+                TextObject::Braces => {
+                    if let Some((start_byte, end_byte)) = state.syntax.get_enclosing_bounds(cursor_byte_idx, '{', '}', &text) {
+                        let mut start_char = state.buffer.byte_to_char(start_byte);
+                        let mut end_char = state.buffer.byte_to_char(end_byte);
+                        if matches!(cmd.action, Action::Inside(_)) {
+                            start_char += 1;
+                            end_char -= 1;
+                        }
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
+                        }
+                    }
+                }
+                TextObject::Parentheses => {
+                    if let Some((start_byte, end_byte)) = state.syntax.get_enclosing_bounds(cursor_byte_idx, '(', ')', &text) {
+                        let mut start_char = state.buffer.byte_to_char(start_byte);
+                        let mut end_char = state.buffer.byte_to_char(end_byte);
+                        if matches!(cmd.action, Action::Inside(_)) {
+                            start_char += 1;
+                            end_char -= 1;
+                        }
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
+                        }
+                    }
+                }
+                TextObject::Brackets => {
+                    if let Some((start_byte, end_byte)) = state.syntax.get_enclosing_bounds(cursor_byte_idx, '[', ']', &text) {
+                        let mut start_char = state.buffer.byte_to_char(start_byte);
+                        let mut end_char = state.buffer.byte_to_char(end_byte);
+                        if matches!(cmd.action, Action::Inside(_)) {
+                            start_char += 1;
+                            end_char -= 1;
+                        }
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
+                        }
+                    }
+                }
+                TextObject::DoubleQuote => {
+                    if let Some((start_byte, end_byte)) = state.syntax.get_enclosing_bounds(cursor_byte_idx, '"', '"', &text) {
+                        let mut start_char = state.buffer.byte_to_char(start_byte);
+                        let mut end_char = state.buffer.byte_to_char(end_byte);
+                        if matches!(cmd.action, Action::Inside(_)) {
+                            start_char += 1;
+                            end_char -= 1;
+                        }
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
+                        }
+                    }
+                }
+                TextObject::SingleQuote => {
+                    if let Some((start_byte, end_byte)) = state.syntax.get_enclosing_bounds(cursor_byte_idx, '\'', '\'', &text) {
+                        let mut start_char = state.buffer.byte_to_char(start_byte);
+                        let mut end_char = state.buffer.byte_to_char(end_byte);
+                        if matches!(cmd.action, Action::Inside(_)) {
+                            start_char += 1;
+                            end_char -= 1;
+                        }
+                        if start_char < end_char {
+                            semantic_bounds = Some((start_char, end_char));
+                        }
+                    }
+                }
+                _ => {}
             }
-            
-            if start < end {
-                let char_idx = state.buffer.line_to_char(state.cursor_row);
-                bounds = Some((char_idx + start, char_idx + end));
-                state.cursor_col = start;
+
+            if let Some((s_char, e_char)) = semantic_bounds {
+                bounds = Some((s_char, e_char));
+                state.cursor_col = s_char - state.buffer.line_to_char(state.buffer.char_to_line(s_char));
+                state.cursor_row = state.buffer.char_to_line(s_char);
+            } else {
+                // Fallback to naive logic
+                let line = state.buffer.line(state.cursor_row).to_string();
+                let col = state.cursor_col;
+                let mut start = col;
+                let mut end = col;
+
+                match obj {
+                    TextObject::Word | TextObject::BigWord => {
+                        while start > 0 && line.chars().nth(start - 1).map_or(false, |c| c.is_alphanumeric() || c == '_') {
+                            start -= 1;
+                        }
+                        while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_alphanumeric() || c == '_') {
+                            end += 1;
+                        }
+                        if matches!(cmd.action, Action::Around(_)) {
+                            while end < line.len() && line.chars().nth(end).map_or(false, |c| c.is_whitespace()) {
+                                end += 1;
+                            }
+                        }
+                    }
+                    _ => {} // Naive implementation for others omitted for brevity
+                }
+                
+                if start < end {
+                    let char_idx = state.buffer.line_to_char(state.cursor_row);
+                    bounds = Some((char_idx + start, char_idx + end));
+                    state.cursor_col = start;
+                }
             }
         }
         Action::Line => {
@@ -221,10 +315,12 @@ pub fn execute_ast_command(cmd: &parser::VimCommand, state: &mut EditorState) {
                 Operator::Delete => {
                     state.clipboard_register = Some(state.buffer.slice(start..end).to_string());
                     state.buffer.remove(start..end);
+                    state.reparse_syntax();
                 }
                 Operator::Change => {
                     state.clipboard_register = Some(state.buffer.slice(start..end).to_string());
                     state.buffer.remove(start..end);
+                    state.reparse_syntax();
                     state.mode = crate::editor::Mode::Insert;
                 }
                 Operator::Yank => {

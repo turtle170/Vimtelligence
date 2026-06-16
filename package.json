@@ -1,9 +1,10 @@
 {
   "name": "vimtelligence",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "An ultra-high-performance modal terminal text editor with local AI acceleration",
   "bin": {
-    "vimtelligence": "./bin/vimtelligence.js"
+    "vimtelligence": "./bin/vimtelligence.js",
+    "vimtelligence-gui": "./bin/vimtelligence-gui.js"
   },
   "scripts": {
     "postinstall": "node install.js"

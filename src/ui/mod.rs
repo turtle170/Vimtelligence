@@ -18,6 +18,7 @@ pub fn render(f: &mut Frame, state: &EditorState) {
         .split(f.size());
 
     let buffer_text = String::from(state.buffer.clone());
+    let highlights = state.syntax.get_highlights();
     
     // Calculate viewport scroll based on cursor position and available height
     let main_area = chunks[0];
@@ -33,7 +34,49 @@ pub fn render(f: &mut Frame, state: &EditorState) {
         Span::styled("telligence ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
     ]);
 
-    let main_buffer = Paragraph::new(buffer_text)
+    let mut current_byte = 0;
+    let mut lines = Vec::new();
+    let mut current_line_spans = Vec::new();
+
+    let mut process_chunk = |start_byte: usize, end_byte: usize, color: Color| {
+        if start_byte >= end_byte { return; }
+        let chunk = &buffer_text[start_byte..end_byte];
+        let mut parts = chunk.split('\n');
+        
+        if let Some(first) = parts.next() {
+            if !first.is_empty() {
+                current_line_spans.push(Span::styled(first.to_string(), Style::default().fg(color)));
+            }
+        }
+        
+        for part in parts {
+            lines.push(Line::from(std::mem::take(&mut current_line_spans)));
+            if !part.is_empty() {
+                current_line_spans.push(Span::styled(part.to_string(), Style::default().fg(color)));
+            }
+        }
+    };
+
+    for (start, end, kind) in highlights {
+        let start = start.min(buffer_text.len());
+        let end = end.min(buffer_text.len());
+        
+        if start > current_byte {
+            process_chunk(current_byte, start, Color::Reset);
+        }
+        if current_byte < end {
+            let color = map_kind_to_ratatui_color(&kind);
+            process_chunk(start.max(current_byte), end, color);
+            current_byte = end;
+        }
+    }
+    
+    if current_byte < buffer_text.len() {
+        process_chunk(current_byte, buffer_text.len(), Color::Reset);
+    }
+    lines.push(Line::from(current_line_spans));
+
+    let main_buffer = Paragraph::new(lines)
         .block(
             Block::default()
                 .title(title)
@@ -103,5 +146,18 @@ pub fn render(f: &mut Frame, state: &EditorState) {
             );
         f.render_widget(ratatui::widgets::Clear, area);
         f.render_widget(overlay, area);
+    }
+}
+
+fn map_kind_to_ratatui_color(kind: &str) -> Color {
+    match kind {
+        "keyword" | "return" | "if" | "else" | "let" | "fn" | "pub" | "struct" | "enum" | "match" => Color::Magenta,
+        "string" | "string_literal" | "string_content" => Color::Green,
+        "number" | "integer_literal" | "float_literal" | "boolean_literal" => Color::Yellow,
+        "comment" | "line_comment" | "block_comment" => Color::DarkGray,
+        "function" | "method" | "identifier" => Color::LightBlue,
+        "type" | "type_identifier" | "primitive_type" => Color::Cyan,
+        "punctuation" | "punctuation.delimiter" | "punctuation.bracket" | "{" | "}" | "(" | ")" | "[" | "]" | ";" | "," => Color::Gray,
+        _ => Color::Reset,
     }
 }
