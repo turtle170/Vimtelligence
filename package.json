@@ -1,6 +1,6 @@
 {
   "name": "vimtelligence",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "An ultra-high-performance modal terminal text editor with local AI acceleration",
   "bin": {
     "vimtelligence": "./bin/vimtelligence.js"

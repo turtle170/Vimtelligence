@@ -75,15 +75,11 @@ async function main() {
 
   // Only download binary on windows for now since it's the only one built in CI
   if (os.platform() === 'win32') {
-    if (!fs.existsSync(BIN_PATH)) {
-      console.log(`Executable not found. Downloading from GitHub Releases...`);
-      try {
-        await downloadFile(BIN_URL, BIN_PATH);
-      } catch (err) {
-        console.error(`Error downloading binary: ${err.message}`);
-      }
-    } else {
-      console.log(`Binary already exists at ${BIN_PATH}. Skipping download.`);
+    console.log(`Downloading Vimtelligence ${VERSION} Executable from GitHub Releases...`);
+    try {
+      await downloadFile(BIN_URL, BIN_PATH);
+    } catch (err) {
+      console.error(`Error downloading binary: ${err.message}`);
     }
   } else {
       console.log(`Please build from source on non-Windows platforms. Binary not provided via NPM yet.`);
