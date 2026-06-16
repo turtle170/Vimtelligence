@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{EnableMouseCapture, DisableMouseCapture, EventStream, PushKeyboardEnhancementFlags},
+    event::{EnableMouseCapture, DisableMouseCapture, EventStream},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -34,15 +34,6 @@ async fn main() -> anyhow::Result<()> {
         EnterAlternateScreen,
         EnableMouseCapture
     )?;
-    
-    // Attempt keyboard enhancements, but ignore if unsupported (e.g. legacy Windows console)
-    let _ = execute!(
-        stdout,
-        PushKeyboardEnhancementFlags(
-            crossterm::event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES
-                | crossterm::event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
-        )
-    );
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -120,10 +111,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Restore terminal
-    let _ = execute!(
-        terminal.backend_mut(),
-        crossterm::event::PopKeyboardEnhancementFlags
-    );
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
